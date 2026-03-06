@@ -1,12 +1,8 @@
 package domain
 
-type Id uint32
-type TaskStatus string
+import tp "github.com/you/todo/api-contracts/gen/go/proto/task/v1alpha"
 
-const (
-	StatusNew  TaskStatus = "NEW"
-	StatusDone TaskStatus = "DONE"
-)
+type TaskID uint32
 
 type TaskCreateRequest struct {
 	Title string
@@ -14,8 +10,15 @@ type TaskCreateRequest struct {
 }
 
 type Task struct {
-	ID     Id
+	ID     TaskID
 	Title  string
 	Text   string
-	Status TaskStatus
+	Status tp.TaskStatus
+}
+
+type TaskFilter struct {
+	Query  string
+	Status tp.TaskStatus
+	Limit  uint32
+	Offset uint32
 }

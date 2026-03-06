@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	a := app.CreateApp(":8080", ":50051")
+	a := app.CreateApp(":50051")
 	if err := a.Run(); err != nil {
 		log.Fatal(err)
 	}
