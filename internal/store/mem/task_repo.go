@@ -7,9 +7,9 @@ import (
 	"strings"
 	"sync"
 
-	d "todo/task-service/internal/domain"
+	d "github.com/tasker-iniutin/task-service/internal/domain"
 
-	taskpb "github.com/you/todo/api-contracts/gen/go/proto/task/v1alpha"
+	taskpb "github.com/tasker-iniutin/api-contracts/gen/go/proto/task/v1alpha"
 )
 
 var ErrMapIsFull = errors.New("map is full")
@@ -42,6 +42,7 @@ func (r *taskRepoImpl) Create(ctx context.Context, t d.TaskCreateRequest) (d.Tas
 	id := d.TaskID(r.counter)
 	nT := d.Task{
 		ID:     id,
+		UserId: t.UserId,
 		Title:  t.Title,
 		Text:   t.Text,
 		Status: taskpb.TaskStatus_TASK_STATUS_NEW,
@@ -65,7 +66,7 @@ func (r *taskRepoImpl) Get(ctx context.Context, id d.TaskID) (d.Task, bool, erro
 	return t, ok, nil
 }
 
-func (r *taskRepoImpl) List(ctx context.Context, filter string) ([]d.Task, error) {
+func (r *taskRepoImpl) List(ctx context.Context, filter string, u_id d.UserID) ([]d.Task, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -77,6 +78,9 @@ func (r *taskRepoImpl) List(ctx context.Context, filter string) ([]d.Task, error
 
 	out := make([]d.Task, 0, len(r.byID))
 	for _, t := range r.byID {
+		if t.UserId != u_id {
+			continue
+		}
 		if q == "" {
 			out = append(out, t)
 			continue

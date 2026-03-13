@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"strconv"
 
-	taskpb "github.com/you/todo/api-contracts/gen/go/proto/task/v1alpha"
+	taskpb "github.com/tasker-iniutin/api-contracts/gen/go/proto/task/v1alpha"
+	authctx "github.com/tasker-iniutin/common/authctx"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"todo/task-service/internal/domain"
-	"todo/task-service/internal/usecase"
+	"github.com/tasker-iniutin/task-service/internal/domain"
+	"github.com/tasker-iniutin/task-service/internal/usecase"
 )
 
 type Server struct {
@@ -22,7 +23,9 @@ type Server struct {
 }
 
 func NewServer(
-	createTask *usecase.CreateTask, getTask *usecase.GetTask, listTasks *usecase.ListTasks,
+	createTask *usecase.CreateTask,
+	getTask *usecase.GetTask,
+	listTasks *usecase.ListTasks,
 ) *Server {
 	return &Server{
 		createTask: createTask,
@@ -32,7 +35,12 @@ func NewServer(
 }
 
 func (s *Server) CreateTask(ctx context.Context, req *taskpb.CreateTaskRequest) (*taskpb.Task, error) {
-	t, err := s.createTask.Exec(ctx, req.GetTitle(), req.GetText())
+	userID, ok := authctx.UserID(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "missing authenticated user")
+	}
+
+	task, err := s.createTask.Exec(ctx, req.GetTitle(), req.GetText(), domain.UserID(userID))
 	if err != nil {
 		if errors.Is(err, usecase.ErrTitleRequired) {
 			return nil, status.Error(codes.InvalidArgument, err.Error())
@@ -40,17 +48,21 @@ func (s *Server) CreateTask(ctx context.Context, req *taskpb.CreateTaskRequest) 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	return s.mapToTask(t), nil
+	return s.mapToTask(task), nil
 }
 
 func (s *Server) GetTask(ctx context.Context, req *taskpb.GetTaskRequest) (*taskpb.Task, error) {
-	id := req.GetId()
-	u, err := strconv.ParseUint(id, 10, 32)
-	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, "id must be uint32")
+	userID, ok := authctx.UserID(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "missing authenticated user")
 	}
-	num := domain.TaskID(uint32(u))
-	t, found, err := s.getTask.Exec(ctx, num)
+
+	taskIDNum, err := strconv.ParseUint(req.GetId(), 10, 32)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid task id")
+	}
+
+	task, found, err := s.getTask.Exec(ctx, domain.TaskID(uint32(taskIDNum)), domain.UserID(userID))
 	if err != nil {
 		if errors.Is(err, usecase.ErrIllegalID) {
 			return nil, status.Error(codes.InvalidArgument, err.Error())
@@ -58,19 +70,26 @@ func (s *Server) GetTask(ctx context.Context, req *taskpb.GetTaskRequest) (*task
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	if !found {
-		return nil, status.Error(codes.NotFound, "this id is not presented")
+		return nil, status.Error(codes.NotFound, "task not found")
 	}
 
-	return s.mapToTask(t), nil
+	return s.mapToTask(task), nil
 }
 
 func (s *Server) ListTasks(ctx context.Context, req *taskpb.ListTasksRequest) (*taskpb.ListTasksResponse, error) {
-	limit := req.GetLimit()
-	offset := req.GetOffset()
-	st := req.GetStatus()
-	query := req.GetQuery()
+	userID, ok := authctx.UserID(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "missing authenticated user")
+	}
 
-	tasks, total, err := s.listTasks.Exec(ctx, limit, offset, st, query)
+	tasks, total, err := s.listTasks.Exec(
+		ctx,
+		req.GetPageSize(),
+		req.GetPageToken(),
+		req.GetStatus(),
+		req.GetQuery(),
+		domain.UserID(userID),
+	)
 	if err != nil {
 		if errors.Is(err, usecase.ErrBadPagination) || errors.Is(err, usecase.ErrBadStatus) {
 			return nil, status.Error(codes.InvalidArgument, err.Error())
@@ -83,8 +102,8 @@ func (s *Server) ListTasks(ctx context.Context, req *taskpb.ListTasksRequest) (*
 		Total: total,
 	}
 
-	for _, t := range tasks {
-		resp.Tasks = append(resp.Tasks, s.mapToTask(t))
+	for _, task := range tasks {
+		resp.Tasks = append(resp.Tasks, s.mapToTask(task))
 	}
 
 	return resp, nil

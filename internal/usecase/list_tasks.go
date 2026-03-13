@@ -3,9 +3,11 @@ package usecase
 import (
 	"context"
 	"errors"
-	d "todo/task-service/internal/domain"
+	"strconv"
 
-	taskpb "github.com/you/todo/api-contracts/gen/go/proto/task/v1alpha"
+	d "github.com/tasker-iniutin/task-service/internal/domain"
+
+	taskpb "github.com/tasker-iniutin/api-contracts/gen/go/proto/task/v1alpha"
 )
 
 var ErrBadPagination = errors.New("padination failed")
@@ -26,16 +28,17 @@ const (
 
 func (uc *ListTasks) Exec(
 	ctx context.Context,
-	limit uint32,
-	offset uint32,
+	size uint32,
+	token string,
 	status taskpb.TaskStatus,
 	query string,
+	u_id d.UserID,
 ) ([]d.Task, uint32, error) {
 
-	if limit == 0 {
-		limit = defaultLimit
+	if size == 0 {
+		size = defaultLimit
 	}
-	if limit > maxLimit {
+	if size > maxLimit {
 		return nil, 0, ErrBadPagination
 	}
 
@@ -47,7 +50,7 @@ func (uc *ListTasks) Exec(
 	default:
 		return nil, 0, ErrBadStatus
 	}
-	ts, err := uc.repo.List(ctx, query)
+	ts, err := uc.repo.List(ctx, query, u_id)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -62,11 +65,12 @@ func (uc *ListTasks) Exec(
 		ts = out
 	}
 
-	total := uint32(len(ts))
+	total := len(ts)
 
-	if offset >= total {
-		return []d.Task{}, total, nil
+	t, _ := strconv.Atoi(token)
+	if t >= total {
+		return []d.Task{}, uint32(total), nil
 	}
-	end := min(offset+limit, total)
-	return ts[offset:end], total, nil
+	end := min(t+int(size), total)
+	return ts[int(size)*t : end], uint32(total), nil
 }

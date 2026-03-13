@@ -1,16 +1,18 @@
 package domain
 
-import tp "github.com/you/todo/api-contracts/gen/go/proto/task/v1alpha"
+import tp "github.com/tasker-iniutin/api-contracts/gen/go/proto/task/v1alpha"
 
 type TaskID uint32
-
+type UserID uint64
 type TaskCreateRequest struct {
-	Title string
-	Text  string
+	UserId UserID
+	Title  string
+	Text   string
 }
 
 type Task struct {
 	ID     TaskID
+	UserId UserID
 	Title  string
 	Text   string
 	Status tp.TaskStatus
