@@ -10,10 +10,11 @@ import (
 func main() {
 	a := app.CreateApp(
 		getenv("TASK_GRPC_ADDR", ":50051"),
-		getenv("JWT_PUBLIC_KEY_PEM", "./keys/public.pem"),
+		getenv("JWT_PUBLIC_KEY_PEM", "../auth-service/keys/public.pem"),
 		getenv("JWT_ISSUER", "todo-auth"),
 		getenv("JWT_AUDIENCE", "todo-api"),
 		getenv("ENABLE_GRPC_REFLECTION", "false") == "true",
+		getenv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/app?sslmode=disable"),
 	)
 
 	if err := a.Run(); err != nil {

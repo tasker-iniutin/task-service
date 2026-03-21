@@ -66,6 +66,43 @@ func (r *taskRepoImpl) Get(ctx context.Context, id d.TaskID) (d.Task, bool, erro
 	return t, ok, nil
 }
 
+func (r *taskRepoImpl) Update(ctx context.Context, t d.TaskUpdateRequest) (d.Task, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return d.Task{}, false, err
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	existing, ok := r.byID[t.ID]
+	if !ok {
+		return d.Task{}, false, nil
+	}
+
+	existing.Title = t.Title
+	existing.Text = t.Text
+	existing.Status = t.Status
+
+	r.byID[t.ID] = existing
+	return existing, true, nil
+}
+
+func (r *taskRepoImpl) Delete(ctx context.Context, id d.TaskID) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if _, ok := r.byID[id]; !ok {
+		return false, nil
+	}
+
+	delete(r.byID, id)
+	return true, nil
+}
+
 func (r *taskRepoImpl) List(ctx context.Context, filter string, u_id d.UserID) ([]d.Task, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err

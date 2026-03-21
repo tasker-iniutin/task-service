@@ -10,7 +10,7 @@ import (
 	taskpb "github.com/tasker-iniutin/api-contracts/gen/go/proto/task/v1alpha"
 )
 
-var ErrBadPagination = errors.New("padination failed")
+var ErrBadPagination = errors.New("pagination failed")
 var ErrBadStatus = errors.New("bad status")
 
 type ListTasks struct {
@@ -42,12 +42,7 @@ func (uc *ListTasks) Exec(
 		return nil, 0, ErrBadPagination
 	}
 
-	switch status {
-	case taskpb.TaskStatus_TASK_STATUS_UNSPECIFIED,
-		taskpb.TaskStatus_TASK_STATUS_NEW,
-		taskpb.TaskStatus_TASK_STATUS_DONE:
-		// ok
-	default:
+	if !isValidTaskStatus(status, true) {
 		return nil, 0, ErrBadStatus
 	}
 	ts, err := uc.repo.List(ctx, query, u_id)
@@ -67,10 +62,37 @@ func (uc *ListTasks) Exec(
 
 	total := len(ts)
 
-	t, _ := strconv.Atoi(token)
-	if t >= total {
+	offset, err := parsePageToken(token)
+	if err != nil {
+		return nil, 0, ErrBadPagination
+	}
+	if offset >= total {
 		return []d.Task{}, uint32(total), nil
 	}
-	end := min(t+int(size), total)
-	return ts[int(size)*t : end], uint32(total), nil
+	end := min(offset+int(size), total)
+	return ts[offset:end], uint32(total), nil
+}
+
+func parsePageToken(token string) (int, error) {
+	if token == "" {
+		return 0, nil
+	}
+
+	offset, err := strconv.Atoi(token)
+	if err != nil || offset < 0 {
+		return 0, ErrBadPagination
+	}
+
+	return offset, nil
+}
+
+func isValidTaskStatus(status taskpb.TaskStatus, allowUnspecified bool) bool {
+	switch status {
+	case taskpb.TaskStatus_TASK_STATUS_NEW, taskpb.TaskStatus_TASK_STATUS_DONE:
+		return true
+	case taskpb.TaskStatus_TASK_STATUS_UNSPECIFIED:
+		return allowUnspecified
+	default:
+		return false
+	}
 }

@@ -26,7 +26,7 @@ func (uc *GetTask) Exec(ctx context.Context, id d.TaskID, u_id d.UserID) (d.Task
 		return d.Task{}, false, err
 	}
 	if t.UserId != u_id {
-		return d.Task{}, false, ErrIllegalID
+		return d.Task{}, false, nil
 	}
 	return t, b, nil
 }
