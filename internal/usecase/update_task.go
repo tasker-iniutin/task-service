@@ -2,8 +2,9 @@ package usecase
 
 import (
 	"context"
+	"time"
 
-	taskpb "github.com/tasker-iniutin/api-contracts/gen/go/proto/task/v1alpha"
+	taskpb "github.com/tasker-iniutin/api-contracts/gen/go/proto/task/v1"
 	d "github.com/tasker-iniutin/task-service/internal/domain"
 )
 
@@ -22,6 +23,7 @@ func (uc *UpdateTask) Exec(
 	text string,
 	status taskpb.TaskStatus,
 	uID d.UserID,
+	expiresAt *time.Time,
 ) (d.Task, bool, error) {
 	if id == 0 {
 		return d.Task{}, false, ErrIllegalID
@@ -47,5 +49,6 @@ func (uc *UpdateTask) Exec(
 		Title:  title,
 		Text:   text,
 		Status: status,
+		ExpiresAt: expiresAt,
 	})
 }

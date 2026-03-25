@@ -41,7 +41,7 @@ Shared infrastructure lives in `common`:
 
 ## API
 
-The protobuf contract is defined in `api-contracts/proto/task/v1alpha/task.proto`.
+The protobuf contract is defined in `api-contracts/proto/task/v1/task.proto`.
 
 Exposed operations:
 
@@ -74,6 +74,7 @@ Table: `tasks`
 - `title`
 - `text`
 - `status`
+- `expires_at` (nullable)
 
 ## Configuration
 

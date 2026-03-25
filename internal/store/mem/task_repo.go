@@ -9,7 +9,7 @@ import (
 
 	d "github.com/tasker-iniutin/task-service/internal/domain"
 
-	taskpb "github.com/tasker-iniutin/api-contracts/gen/go/proto/task/v1alpha"
+	taskpb "github.com/tasker-iniutin/api-contracts/gen/go/proto/task/v1"
 )
 
 var ErrMapIsFull = errors.New("map is full")
@@ -46,6 +46,7 @@ func (r *taskRepoImpl) Create(ctx context.Context, t d.TaskCreateRequest) (d.Tas
 		Title:  t.Title,
 		Text:   t.Text,
 		Status: taskpb.TaskStatus_TASK_STATUS_NEW,
+		ExpiresAt: t.ExpiresAt,
 	}
 
 	r.byID[id] = nT
@@ -85,6 +86,9 @@ func (r *taskRepoImpl) Update(ctx context.Context, t d.TaskUpdateRequest) (d.Tas
 	existing.Title = t.Title
 	existing.Text = t.Text
 	existing.Status = t.Status
+	if t.ExpiresAt != nil {
+		existing.ExpiresAt = t.ExpiresAt
+	}
 
 	r.byID[t.ID] = existing
 	return existing, true, nil

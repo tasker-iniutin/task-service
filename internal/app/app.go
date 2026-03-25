@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 
-	taskpb "github.com/tasker-iniutin/api-contracts/gen/go/proto/task/v1alpha"
+	taskpb "github.com/tasker-iniutin/api-contracts/gen/go/proto/task/v1"
 	authsec "github.com/tasker-iniutin/common/authsecurity"
 	"github.com/tasker-iniutin/common/grpcauth"
 	"github.com/tasker-iniutin/common/postgres"

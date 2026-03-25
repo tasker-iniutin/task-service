@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	taskpb "github.com/tasker-iniutin/api-contracts/gen/go/proto/task/v1alpha"
+	taskpb "github.com/tasker-iniutin/api-contracts/gen/go/proto/task/v1"
 	"github.com/tasker-iniutin/task-service/internal/store/mem"
 )
 
@@ -13,7 +13,7 @@ func TestUpdateTaskRequiresOwnership(t *testing.T) {
 	createTask := NewCreateTask(repo)
 	updateTask := NewUpdateTask(repo)
 
-	task, err := createTask.Exec(context.Background(), "title", "text", 10)
+	task, err := createTask.Exec(context.Background(), "title", "text", 10, nil)
 	if err != nil {
 		t.Fatalf("create task: %v", err)
 	}
@@ -25,6 +25,7 @@ func TestUpdateTaskRequiresOwnership(t *testing.T) {
 		"text",
 		taskpb.TaskStatus_TASK_STATUS_DONE,
 		99,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("update task: %v", err)
@@ -40,7 +41,7 @@ func TestDeleteTaskRemovesTask(t *testing.T) {
 	deleteTask := NewDeleteTask(repo)
 	getTask := NewGetTask(repo)
 
-	task, err := createTask.Exec(context.Background(), "title", "text", 10)
+	task, err := createTask.Exec(context.Background(), "title", "text", 10, nil)
 	if err != nil {
 		t.Fatalf("create task: %v", err)
 	}
@@ -68,7 +69,7 @@ func TestListTasksUsesOffsetPagination(t *testing.T) {
 	listTasks := NewListTasks(repo)
 
 	for i := 0; i < 3; i++ {
-		if _, err := createTask.Exec(context.Background(), "title", "text", 10); err != nil {
+		if _, err := createTask.Exec(context.Background(), "title", "text", 10, nil); err != nil {
 			t.Fatalf("create task %d: %v", i, err)
 		}
 	}
@@ -116,7 +117,7 @@ func TestCreateTaskRejectsEmptyTitle(t *testing.T) {
 	repo := mem.NewTaskRepo()
 	createTask := NewCreateTask(repo)
 
-	_, err := createTask.Exec(context.Background(), "", "text", 10)
+	_, err := createTask.Exec(context.Background(), "", "text", 10, nil)
 	if err != ErrTitleRequired {
 		t.Fatalf("expected ErrTitleRequired, got %v", err)
 	}
@@ -127,7 +128,7 @@ func TestGetTaskHidesForeignTask(t *testing.T) {
 	createTask := NewCreateTask(repo)
 	getTask := NewGetTask(repo)
 
-	task, err := createTask.Exec(context.Background(), "title", "text", 10)
+	task, err := createTask.Exec(context.Background(), "title", "text", 10, nil)
 	if err != nil {
 		t.Fatalf("create task: %v", err)
 	}
@@ -146,12 +147,12 @@ func TestUpdateTaskRejectsInvalidStatus(t *testing.T) {
 	createTask := NewCreateTask(repo)
 	updateTask := NewUpdateTask(repo)
 
-	task, err := createTask.Exec(context.Background(), "title", "text", 10)
+	task, err := createTask.Exec(context.Background(), "title", "text", 10, nil)
 	if err != nil {
 		t.Fatalf("create task: %v", err)
 	}
 
-	_, _, err = updateTask.Exec(context.Background(), task.ID, "title", "text", taskpb.TaskStatus(99), 10)
+	_, _, err = updateTask.Exec(context.Background(), task.ID, "title", "text", taskpb.TaskStatus(99), 10, nil)
 	if err != ErrBadStatus {
 		t.Fatalf("expected ErrBadStatus, got %v", err)
 	}
@@ -162,7 +163,7 @@ func TestDeleteTaskRequiresOwnership(t *testing.T) {
 	createTask := NewCreateTask(repo)
 	deleteTask := NewDeleteTask(repo)
 
-	task, err := createTask.Exec(context.Background(), "title", "text", 10)
+	task, err := createTask.Exec(context.Background(), "title", "text", 10, nil)
 	if err != nil {
 		t.Fatalf("create task: %v", err)
 	}

@@ -5,6 +5,7 @@ CREATE TABLE tasks (
     title TEXT NOT NULL,
     text TEXT NOT NULL DEFAULT '',
     status INTEGER NOT NULL,
+    expires_at TIMESTAMP NULL,
     CONSTRAINT tasks_title_not_empty CHECK (btrim(title) <> ''),
     CONSTRAINT tasks_status_valid CHECK (status IN (1, 2))
 );

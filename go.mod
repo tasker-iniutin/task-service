@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/jackc/pgx/v5 v5.8.0
-	github.com/tasker-iniutin/api-contracts v0.1.1-alpha
+	github.com/tasker-iniutin/api-contracts v1.1.0
 	github.com/tasker-iniutin/common v0.3.0
 	google.golang.org/grpc v1.79.1
 	google.golang.org/protobuf v1.36.11

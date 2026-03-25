@@ -4,9 +4,10 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	taskpb "github.com/tasker-iniutin/api-contracts/gen/go/proto/task/v1alpha"
+	taskpb "github.com/tasker-iniutin/api-contracts/gen/go/proto/task/v1"
 	d "github.com/tasker-iniutin/task-service/internal/domain"
 )
 
@@ -14,10 +15,12 @@ func TestTaskRepoCRUD(t *testing.T) {
 	db := openTaskTestDB(t)
 	repo := NewTaskPostgreRepo(db)
 
+	exp := time.Now().UTC().Truncate(time.Second)
 	task, err := repo.Create(context.Background(), d.TaskCreateRequest{
-		UserId: 7,
-		Title:  "write tests",
-		Text:   "repo tests",
+		UserId:    7,
+		Title:     "write tests",
+		Text:      "repo tests",
+		ExpiresAt: &exp,
 	})
 	if err != nil {
 		t.Fatalf("create task: %v", err)
@@ -35,6 +38,9 @@ func TestTaskRepoCRUD(t *testing.T) {
 	}
 	if got.Title != "write tests" {
 		t.Fatalf("unexpected title: %q", got.Title)
+	}
+	if got.ExpiresAt == nil || !got.ExpiresAt.Equal(exp) {
+		t.Fatalf("unexpected expires_at: %v", got.ExpiresAt)
 	}
 
 	updated, found, err := repo.Update(context.Background(), d.TaskUpdateRequest{
@@ -249,6 +255,7 @@ func setupTaskSchema(t *testing.T, db *pgxpool.Pool) {
 			title TEXT NOT NULL,
 			text TEXT NOT NULL DEFAULT '',
 			status INTEGER NOT NULL,
+			expires_at TIMESTAMP NULL,
 			CONSTRAINT tasks_title_not_empty CHECK (btrim(title) <> ''),
 			CONSTRAINT tasks_status_valid CHECK (status IN (1, 2))
 		);

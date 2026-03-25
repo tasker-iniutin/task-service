@@ -9,7 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	taskpb "github.com/tasker-iniutin/api-contracts/gen/go/proto/task/v1alpha"
+	taskpb "github.com/tasker-iniutin/api-contracts/gen/go/proto/task/v1"
 
 	d "github.com/tasker-iniutin/task-service/internal/domain"
 )
@@ -24,9 +24,9 @@ func NewTaskPostgreRepo(db *pgxpool.Pool) *taskPosgtreImpl {
 
 func (r *taskPosgtreImpl) Create(ctx context.Context, t d.TaskCreateRequest) (d.Task, error) {
 	const q = `
-		INSERT INTO tasks (user_id, title, text, status)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id, user_id, title, text, status
+		INSERT INTO tasks (user_id, title, text, status, expires_at)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, user_id, title, text, status, expires_at
 	`
 
 	var nT d.Task
@@ -37,12 +37,14 @@ func (r *taskPosgtreImpl) Create(ctx context.Context, t d.TaskCreateRequest) (d.
 		t.Title,
 		t.Text,
 		taskpb.TaskStatus_TASK_STATUS_NEW,
+		t.ExpiresAt,
 	).Scan(
 		&nT.ID,
 		&nT.UserId,
 		&nT.Title,
 		&nT.Text,
 		&nT.Status,
+		&nT.ExpiresAt,
 	)
 
 	if err != nil {
@@ -54,7 +56,7 @@ func (r *taskPosgtreImpl) Create(ctx context.Context, t d.TaskCreateRequest) (d.
 
 func (r *taskPosgtreImpl) Get(ctx context.Context, id d.TaskID) (d.Task, bool, error) {
 	const q = `
-		SELECT id, user_id, title, text, status
+		SELECT id, user_id, title, text, status, expires_at
 		FROM tasks
 		WHERE id = $1
 	`
@@ -66,6 +68,7 @@ func (r *taskPosgtreImpl) Get(ctx context.Context, id d.TaskID) (d.Task, bool, e
 		&t.Title,
 		&t.Text,
 		&t.Status,
+		&t.ExpiresAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -80,18 +83,19 @@ func (r *taskPosgtreImpl) Get(ctx context.Context, id d.TaskID) (d.Task, bool, e
 func (r *taskPosgtreImpl) Update(ctx context.Context, t d.TaskUpdateRequest) (d.Task, bool, error) {
 	const q = `
 		UPDATE tasks
-		SET title = $3, text = $4, status = $5
+		SET title = $3, text = $4, status = $5, expires_at = COALESCE($6, expires_at)
 		WHERE id = $1 AND user_id = $2
-		RETURNING id, user_id, title, text, status
+		RETURNING id, user_id, title, text, status, expires_at
 	`
 
 	var updated d.Task
-	err := r.db.QueryRow(ctx, q, t.ID, t.UserId, t.Title, t.Text, t.Status).Scan(
+	err := r.db.QueryRow(ctx, q, t.ID, t.UserId, t.Title, t.Text, t.Status, t.ExpiresAt).Scan(
 		&updated.ID,
 		&updated.UserId,
 		&updated.Title,
 		&updated.Text,
 		&updated.Status,
+		&updated.ExpiresAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -134,7 +138,7 @@ func (r *taskPosgtreImpl) List(ctx context.Context, filter string, status int32,
 		  AND ($3 = 0 OR status = $3)
 	`
 	const q = `
-		SELECT id, user_id, title, text, status
+		SELECT id, user_id, title, text, status, expires_at
 		FROM tasks
 		WHERE user_id = $1
 		  AND (
@@ -172,6 +176,7 @@ func (r *taskPosgtreImpl) List(ctx context.Context, filter string, status int32,
 			&task.Title,
 			&task.Text,
 			&task.Status,
+			&task.ExpiresAt,
 		); err != nil {
 			return nil, 0, fmt.Errorf("scan task: %w", err)
 		}

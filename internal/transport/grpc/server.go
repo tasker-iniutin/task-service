@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"time"
 
-	taskpb "github.com/tasker-iniutin/api-contracts/gen/go/proto/task/v1alpha"
+	taskpb "github.com/tasker-iniutin/api-contracts/gen/go/proto/task/v1"
 	authctx "github.com/tasker-iniutin/common/authctx"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/tasker-iniutin/task-service/internal/domain"
 	"github.com/tasker-iniutin/task-service/internal/usecase"
@@ -47,7 +49,12 @@ func (s *Server) CreateTask(ctx context.Context, req *taskpb.CreateTaskRequest) 
 		return nil, status.Error(codes.Unauthenticated, "missing authenticated user")
 	}
 
-	task, err := s.createTask.Exec(ctx, req.GetTitle(), req.GetText(), domain.UserID(userID))
+	expiresAt, err := toTimePtr(req.GetExpiresAt())
+	if err != nil {
+		return nil, err
+	}
+
+	task, err := s.createTask.Exec(ctx, req.GetTitle(), req.GetText(), domain.UserID(userID), expiresAt)
 	if err != nil {
 		if errors.Is(err, usecase.ErrTitleRequired) {
 			return nil, status.Error(codes.InvalidArgument, err.Error())
@@ -127,6 +134,11 @@ func (s *Server) UpdateTask(ctx context.Context, req *taskpb.UpdateTaskRequest) 
 		return nil, status.Error(codes.InvalidArgument, "invalid task id")
 	}
 
+	expiresAt, err := toTimePtr(req.GetExpiresAt())
+	if err != nil {
+		return nil, err
+	}
+
 	task, found, err := s.updateTask.Exec(
 		ctx,
 		domain.TaskID(taskIDNum),
@@ -134,6 +146,7 @@ func (s *Server) UpdateTask(ctx context.Context, req *taskpb.UpdateTaskRequest) 
 		req.GetText(),
 		req.GetStatus(),
 		domain.UserID(userID),
+		expiresAt,
 	)
 	if err != nil {
 		if errors.Is(err, usecase.ErrIllegalID) ||
@@ -182,5 +195,24 @@ func (s *Server) mapToTask(t domain.Task) *taskpb.Task {
 		Title:  t.Title,
 		Text:   t.Text,
 		Status: t.Status,
+		ExpiresAt: toTimestamp(t.ExpiresAt),
 	}
+}
+
+func toTimePtr(ts *timestamppb.Timestamp) (*time.Time, error) {
+	if ts == nil {
+		return nil, nil
+	}
+	if err := ts.CheckValid(); err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid expires_at")
+	}
+	t := ts.AsTime()
+	return &t, nil
+}
+
+func toTimestamp(t *time.Time) *timestamppb.Timestamp {
+	if t == nil {
+		return nil
+	}
+	return timestamppb.New(*t)
 }

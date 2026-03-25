@@ -8,7 +8,7 @@ import (
 
 	d "github.com/tasker-iniutin/task-service/internal/domain"
 
-	taskpb "github.com/tasker-iniutin/api-contracts/gen/go/proto/task/v1alpha"
+	taskpb "github.com/tasker-iniutin/api-contracts/gen/go/proto/task/v1"
 )
 
 var ErrBadPagination = errors.New("pagination failed")
