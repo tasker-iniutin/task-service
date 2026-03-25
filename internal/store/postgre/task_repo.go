@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -79,8 +80,8 @@ func (r *taskPosgtreImpl) Get(ctx context.Context, id d.TaskID) (d.Task, bool, e
 func (r *taskPosgtreImpl) Update(ctx context.Context, t d.TaskUpdateRequest) (d.Task, bool, error) {
 	const q = `
 		UPDATE tasks
-		SET user_id = $2, title = $3, text = $4, status = $5
-		WHERE id = $1
+		SET title = $3, text = $4, status = $5
+		WHERE id = $1 AND user_id = $2
 		RETURNING id, user_id, title, text, status
 	`
 
@@ -102,13 +103,13 @@ func (r *taskPosgtreImpl) Update(ctx context.Context, t d.TaskUpdateRequest) (d.
 	return updated, true, nil
 }
 
-func (r *taskPosgtreImpl) Delete(ctx context.Context, id d.TaskID) (bool, error) {
+func (r *taskPosgtreImpl) Delete(ctx context.Context, id d.TaskID, uID d.UserID) (bool, error) {
 	const query = `
 		DELETE FROM tasks
-		WHERE id = $1
+		WHERE id = $1 AND user_id = $2
 	`
 
-	cmdTag, err := r.db.Exec(ctx, query, id)
+	cmdTag, err := r.db.Exec(ctx, query, id, uID)
 	if err != nil {
 		return false, fmt.Errorf("delete task: %w", err)
 	}
@@ -120,7 +121,18 @@ func (r *taskPosgtreImpl) Delete(ctx context.Context, id d.TaskID) (bool, error)
 	return true, nil
 }
 
-func (r *taskPosgtreImpl) List(ctx context.Context, filter string, u_id d.UserID) ([]d.Task, error) {
+func (r *taskPosgtreImpl) List(ctx context.Context, filter string, status int32, limit, offset uint32, u_id d.UserID) ([]d.Task, uint32, error) {
+	const countQ = `
+		SELECT COUNT(*)
+		FROM tasks
+		WHERE user_id = $1
+		  AND (
+		    $2 = ''
+		    OR LOWER(title) LIKE '%' || $2 || '%'
+		    OR LOWER(text) LIKE '%' || $2 || '%'
+		  )
+		  AND ($3 = 0 OR status = $3)
+	`
 	const q = `
 		SELECT id, user_id, title, text, status
 		FROM tasks
@@ -130,12 +142,24 @@ func (r *taskPosgtreImpl) List(ctx context.Context, filter string, u_id d.UserID
 		    OR LOWER(title) LIKE '%' || $2 || '%'
 		    OR LOWER(text) LIKE '%' || $2 || '%'
 		  )
+		  AND ($3 = 0 OR status = $3)
 		ORDER BY id ASC
+		LIMIT $4 OFFSET $5
 	`
 
-	rows, err := r.db.Query(ctx, q, u_id, strings.ToLower(strings.TrimSpace(filter)))
+	f := strings.ToLower(strings.TrimSpace(filter))
+
+	var total int64
+	if err := r.db.QueryRow(ctx, countQ, u_id, f, status).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count tasks: %w", err)
+	}
+	if total > math.MaxUint32 {
+		return nil, 0, fmt.Errorf("task total exceeds limit: %d", total)
+	}
+
+	rows, err := r.db.Query(ctx, q, u_id, f, status, limit, offset)
 	if err != nil {
-		return nil, fmt.Errorf("list tasks: %w", err)
+		return nil, 0, fmt.Errorf("list tasks: %w", err)
 	}
 	defer rows.Close()
 
@@ -149,14 +173,14 @@ func (r *taskPosgtreImpl) List(ctx context.Context, filter string, u_id d.UserID
 			&task.Text,
 			&task.Status,
 		); err != nil {
-			return nil, fmt.Errorf("scan task: %w", err)
+			return nil, 0, fmt.Errorf("scan task: %w", err)
 		}
 		tasks = append(tasks, task)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate tasks: %w", err)
+		return nil, 0, fmt.Errorf("iterate tasks: %w", err)
 	}
 
-	return tasks, nil
+	return tasks, uint32(total), nil
 }

@@ -2,16 +2,14 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"log"
-	"net"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	taskpb "github.com/tasker-iniutin/api-contracts/gen/go/proto/task/v1alpha"
 	authsec "github.com/tasker-iniutin/common/authsecurity"
 	"github.com/tasker-iniutin/common/grpcauth"
+	"github.com/tasker-iniutin/common/postgres"
+	"github.com/tasker-iniutin/common/runtime"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
 
 	"github.com/tasker-iniutin/task-service/internal/store/postgre"
 	handler "github.com/tasker-iniutin/task-service/internal/transport/grpc"
@@ -19,40 +17,17 @@ import (
 )
 
 type App struct {
-	grpcAddr         string
-	publicKeyPath    string
-	jwtIssuer        string
-	jwtAudience      string
-	enableReflection bool
-	databaseAddr     string
+	cfg Config
 }
 
-func CreateApp(
-	grpcAddr string,
-	publicKeyPath string,
-	jwtIssuer string,
-	jwtAudience string,
-	enableReflection bool,
-	databaseAddr string,
-) *App {
-	return &App{
-		grpcAddr:         grpcAddr,
-		publicKeyPath:    publicKeyPath,
-		jwtIssuer:        jwtIssuer,
-		jwtAudience:      jwtAudience,
-		enableReflection: enableReflection,
-		databaseAddr:     databaseAddr,
-	}
+func New(cfg Config) *App {
+	return &App{cfg: cfg}
 }
 
-func (a *App) Run() error {
-	db, err := pgxpool.New(context.Background(), a.databaseAddr)
+func (a *App) Run(ctx context.Context) error {
+	db, err := postgres.Open(context.Background(), a.cfg.DatabaseURL)
 	if err != nil {
-		return fmt.Errorf("create db pool: %w", err)
-	}
-	if err := db.Ping(context.Background()); err != nil {
-		db.Close()
-		return fmt.Errorf("ping db: %w", err)
+		return err
 	}
 	defer db.Close()
 
@@ -66,35 +41,28 @@ func (a *App) Run() error {
 
 	h := handler.NewServer(createTask, getTask, listTasks, updateTask, deleteTask)
 
-	pub, err := authsec.LoadRSAPublicKeyFromPEMFile(a.publicKeyPath)
+	pub, err := authsec.LoadRSAPublicKeyFromPEMFile(a.cfg.PublicKeyPath)
 	if err != nil {
 		return err
 	}
 
-	verifier := authsec.NewRS256Verifier(pub, a.jwtIssuer, a.jwtAudience)
+	verifier := authsec.NewRS256Verifier(pub, a.cfg.JWTIssuer, a.cfg.JWTAudience)
 
 	whitelist := map[string]struct{}{}
 
-	grpcServer := grpc.NewServer(
+	log.Printf("task-service gRPC listening on %s", a.cfg.GRPCAddr)
+	log.Printf("task-service auth config: public_key=%s issuer=%s audience=%s",
+		a.cfg.PublicKeyPath, a.cfg.JWTIssuer, a.cfg.JWTAudience,
+	)
+	log.Printf("task-service database config: dsn=%s", a.cfg.DatabaseURL)
+
+	return runtime.ServeGRPCWithContext(
+		ctx,
+		a.cfg.GRPCAddr,
+		func(server *grpc.Server) {
+			taskpb.RegisterTaskServiceServer(server, h)
+		},
+		a.cfg.EnableReflection,
 		grpc.UnaryInterceptor(grpcauth.UnaryAuthInterceptor(verifier, whitelist)),
 	)
-
-	taskpb.RegisterTaskServiceServer(grpcServer, h)
-
-	if a.enableReflection {
-		reflection.Register(grpcServer)
-	}
-
-	lis, err := net.Listen("tcp", a.grpcAddr)
-	if err != nil {
-		return err
-	}
-
-	log.Printf("task-service gRPC listening on %s", a.grpcAddr)
-	log.Printf("task-service auth config: public_key=%s issuer=%s audience=%s",
-		a.publicKeyPath, a.jwtIssuer, a.jwtAudience,
-	)
-	log.Printf("task-service database config: dsn=%s", a.databaseAddr)
-
-	return grpcServer.Serve(lis)
 }

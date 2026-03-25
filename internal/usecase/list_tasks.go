@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"math"
 	"strconv"
 
 	d "github.com/tasker-iniutin/task-service/internal/domain"
@@ -45,45 +46,33 @@ func (uc *ListTasks) Exec(
 	if !isValidTaskStatus(status, true) {
 		return nil, 0, ErrBadStatus
 	}
-	ts, err := uc.repo.List(ctx, query, u_id)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	if status != taskpb.TaskStatus_TASK_STATUS_UNSPECIFIED {
-		out := make([]d.Task, 0, len(ts))
-		for _, t := range ts {
-			if t.Status == status {
-				out = append(out, t)
-			}
-		}
-		ts = out
-	}
-
-	total := len(ts)
-
 	offset, err := parsePageToken(token)
 	if err != nil {
 		return nil, 0, ErrBadPagination
 	}
-	if offset >= total {
-		return []d.Task{}, uint32(total), nil
+
+	tasks, total, err := uc.repo.List(ctx, query, int32(status), size, offset, u_id)
+	if err != nil {
+		return nil, 0, err
 	}
-	end := min(offset+int(size), total)
-	return ts[offset:end], uint32(total), nil
+
+	return tasks, total, nil
 }
 
-func parsePageToken(token string) (int, error) {
+func parsePageToken(token string) (uint32, error) {
 	if token == "" {
 		return 0, nil
 	}
 
-	offset, err := strconv.Atoi(token)
-	if err != nil || offset < 0 {
+	offset, err := strconv.ParseUint(token, 10, 64)
+	if err != nil {
+		return 0, ErrBadPagination
+	}
+	if offset > math.MaxUint32 {
 		return 0, ErrBadPagination
 	}
 
-	return offset, nil
+	return uint32(offset), nil
 }
 
 func isValidTaskStatus(status taskpb.TaskStatus, allowUnspecified bool) bool {

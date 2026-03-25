@@ -78,6 +78,9 @@ func (r *taskRepoImpl) Update(ctx context.Context, t d.TaskUpdateRequest) (d.Tas
 	if !ok {
 		return d.Task{}, false, nil
 	}
+	if existing.UserId != t.UserId {
+		return d.Task{}, false, nil
+	}
 
 	existing.Title = t.Title
 	existing.Text = t.Text
@@ -87,7 +90,7 @@ func (r *taskRepoImpl) Update(ctx context.Context, t d.TaskUpdateRequest) (d.Tas
 	return existing, true, nil
 }
 
-func (r *taskRepoImpl) Delete(ctx context.Context, id d.TaskID) (bool, error) {
+func (r *taskRepoImpl) Delete(ctx context.Context, id d.TaskID, uID d.UserID) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
@@ -95,7 +98,11 @@ func (r *taskRepoImpl) Delete(ctx context.Context, id d.TaskID) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if _, ok := r.byID[id]; !ok {
+	existing, ok := r.byID[id]
+	if !ok {
+		return false, nil
+	}
+	if existing.UserId != uID {
 		return false, nil
 	}
 
@@ -103,9 +110,9 @@ func (r *taskRepoImpl) Delete(ctx context.Context, id d.TaskID) (bool, error) {
 	return true, nil
 }
 
-func (r *taskRepoImpl) List(ctx context.Context, filter string, u_id d.UserID) ([]d.Task, error) {
+func (r *taskRepoImpl) List(ctx context.Context, filter string, status int32, limit, offset uint32, u_id d.UserID) ([]d.Task, uint32, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	q := strings.ToLower(strings.TrimSpace(filter))
@@ -116,6 +123,9 @@ func (r *taskRepoImpl) List(ctx context.Context, filter string, u_id d.UserID) (
 	out := make([]d.Task, 0, len(r.byID))
 	for _, t := range r.byID {
 		if t.UserId != u_id {
+			continue
+		}
+		if status != 0 && int32(t.Status) != status {
 			continue
 		}
 		if q == "" {
@@ -137,5 +147,16 @@ func (r *taskRepoImpl) List(ctx context.Context, filter string, u_id d.UserID) (
 		return 0
 	})
 
-	return out, nil
+	total := uint32(len(out))
+	if offset >= total {
+		return []d.Task{}, total, nil
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+
+	off := int(offset)
+	ed := int(end)
+	return out[off:ed], total, nil
 }

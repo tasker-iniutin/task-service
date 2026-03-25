@@ -64,12 +64,12 @@ func (s *Server) GetTask(ctx context.Context, req *taskpb.GetTaskRequest) (*task
 		return nil, status.Error(codes.Unauthenticated, "missing authenticated user")
 	}
 
-	taskIDNum, err := strconv.ParseUint(req.GetId(), 10, 32)
+	taskIDNum, err := strconv.ParseUint(req.GetId(), 10, 64)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "invalid task id")
 	}
 
-	task, found, err := s.getTask.Exec(ctx, domain.TaskID(uint32(taskIDNum)), domain.UserID(userID))
+	task, found, err := s.getTask.Exec(ctx, domain.TaskID(taskIDNum), domain.UserID(userID))
 	if err != nil {
 		if errors.Is(err, usecase.ErrIllegalID) {
 			return nil, status.Error(codes.InvalidArgument, err.Error())
@@ -122,14 +122,14 @@ func (s *Server) UpdateTask(ctx context.Context, req *taskpb.UpdateTaskRequest) 
 		return nil, status.Error(codes.Unauthenticated, "missing authenticated user")
 	}
 
-	taskIDNum, err := strconv.ParseUint(req.GetId(), 10, 32)
+	taskIDNum, err := strconv.ParseUint(req.GetId(), 10, 64)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "invalid task id")
 	}
 
 	task, found, err := s.updateTask.Exec(
 		ctx,
-		domain.TaskID(uint32(taskIDNum)),
+		domain.TaskID(taskIDNum),
 		req.GetTitle(),
 		req.GetText(),
 		req.GetStatus(),
@@ -156,12 +156,12 @@ func (s *Server) DeleteTask(ctx context.Context, req *taskpb.DeleteTaskRequest) 
 		return nil, status.Error(codes.Unauthenticated, "missing authenticated user")
 	}
 
-	taskIDNum, err := strconv.ParseUint(req.GetId(), 10, 32)
+	taskIDNum, err := strconv.ParseUint(req.GetId(), 10, 64)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "invalid task id")
 	}
 
-	deleted, err := s.deleteTask.Exec(ctx, domain.TaskID(uint32(taskIDNum)), domain.UserID(userID))
+	deleted, err := s.deleteTask.Exec(ctx, domain.TaskID(taskIDNum), domain.UserID(userID))
 	if err != nil {
 		if errors.Is(err, usecase.ErrIllegalID) {
 			return nil, status.Error(codes.InvalidArgument, err.Error())
@@ -177,7 +177,7 @@ func (s *Server) DeleteTask(ctx context.Context, req *taskpb.DeleteTaskRequest) 
 
 func (s *Server) mapToTask(t domain.Task) *taskpb.Task {
 	return &taskpb.Task{
-		Id:     fmt.Sprintf("%d", uint32(t.ID)),
+		Id:     fmt.Sprintf("%d", uint64(t.ID)),
 		UserId: fmt.Sprintf("%d", uint64(t.UserId)),
 		Title:  t.Title,
 		Text:   t.Text,

@@ -111,3 +111,67 @@ func TestListTasksRejectsInvalidPageToken(t *testing.T) {
 		t.Fatalf("expected ErrBadPagination, got %v", err)
 	}
 }
+
+func TestCreateTaskRejectsEmptyTitle(t *testing.T) {
+	repo := mem.NewTaskRepo()
+	createTask := NewCreateTask(repo)
+
+	_, err := createTask.Exec(context.Background(), "", "text", 10)
+	if err != ErrTitleRequired {
+		t.Fatalf("expected ErrTitleRequired, got %v", err)
+	}
+}
+
+func TestGetTaskHidesForeignTask(t *testing.T) {
+	repo := mem.NewTaskRepo()
+	createTask := NewCreateTask(repo)
+	getTask := NewGetTask(repo)
+
+	task, err := createTask.Exec(context.Background(), "title", "text", 10)
+	if err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+	_, found, err := getTask.Exec(context.Background(), task.ID, 11)
+	if err != nil {
+		t.Fatalf("get task: %v", err)
+	}
+	if found {
+		t.Fatal("expected foreign task to be hidden")
+	}
+}
+
+func TestUpdateTaskRejectsInvalidStatus(t *testing.T) {
+	repo := mem.NewTaskRepo()
+	createTask := NewCreateTask(repo)
+	updateTask := NewUpdateTask(repo)
+
+	task, err := createTask.Exec(context.Background(), "title", "text", 10)
+	if err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+	_, _, err = updateTask.Exec(context.Background(), task.ID, "title", "text", taskpb.TaskStatus(99), 10)
+	if err != ErrBadStatus {
+		t.Fatalf("expected ErrBadStatus, got %v", err)
+	}
+}
+
+func TestDeleteTaskRequiresOwnership(t *testing.T) {
+	repo := mem.NewTaskRepo()
+	createTask := NewCreateTask(repo)
+	deleteTask := NewDeleteTask(repo)
+
+	task, err := createTask.Exec(context.Background(), "title", "text", 10)
+	if err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+	deleted, err := deleteTask.Exec(context.Background(), task.ID, 11)
+	if err != nil {
+		t.Fatalf("delete task: %v", err)
+	}
+	if deleted {
+		t.Fatal("expected foreign task delete to fail")
+	}
+}

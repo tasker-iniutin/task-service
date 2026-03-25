@@ -27,5 +27,5 @@ func (uc *DeleteTask) Exec(ctx context.Context, id d.TaskID, uID d.UserID) (bool
 		return false, nil
 	}
 
-	return uc.repo.Delete(ctx, id)
+	return uc.repo.Delete(ctx, id, uID)
 }
